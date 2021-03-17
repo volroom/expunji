@@ -1,2 +1,7 @@
-# expunji
-DNS Sinkhole made with Elixir
+# Expunji
+
+**DNS Sinkhole made with Elixir**
+
+## Installation
+
+TBD

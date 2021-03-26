@@ -11,7 +11,7 @@ defmodule Expunji.Hosts do
     hosts =
       @hosts_dir
       |> File.ls!()
-      |> Enum.filter(& &1 != ".gitignore")
+      |> Enum.filter(&(&1 != ".gitignore"))
       |> Enum.flat_map(fn filename ->
         parse_file(Path.join(@hosts_dir, filename))
       end)
@@ -32,7 +32,15 @@ defmodule Expunji.Hosts do
     first_word = List.first(words)
 
     if first_word != nil and String.first(first_word) != "#" do
-      [_ip | [domain | _]] = words
+      domain =
+        case words do
+          [_ip | [domain | _]] ->
+            domain
+
+          [domain] ->
+            domain
+        end
+
       [{String.to_charlist(domain)}]
     else
       []

@@ -3,8 +3,9 @@ defmodule Expunji.DNSUtils do
   Functions to parse DNS traffic
   """
 
-  @blocked_ip {0, 0, 0, 0}
-  @true_dns_server {1, 1, 1, 1}
+  @blocked_ip Application.fetch_env!(:expunji, :blocked_ip)
+  @nameserver_dest_port Application.fetch_env!(:expunji, :nameserver_dest_port)
+  @nameserver_ip Application.fetch_env!(:expunji, :nameserver_ip)
 
   def decode(packet) do
     {:ok, record} = :inet_dns.decode(packet)
@@ -39,7 +40,7 @@ defmodule Expunji.DNSUtils do
   end
 
   def forward_real_dns_response(%{nameserver_socket: socket}, packet) do
-    :gen_udp.send(socket, @true_dns_server, 53, packet)
+    :gen_udp.send(socket, @nameserver_ip, @nameserver_dest_port, packet)
     {:ok, {_ip, _port, response}} = :gen_udp.recv(socket, 0)
     response
   end

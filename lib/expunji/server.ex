@@ -9,8 +9,8 @@ defmodule Expunji.Server do
 
   alias Expunji.DNSUtils
 
-  @nameserver_socket_port 51234
-  @hosts_table_name :hosts
+  @client_socket_port Application.fetch_env!(:expunji, :client_socket_port)
+  @nameserver_socket_port Application.fetch_env!(:expunji, :nameserver_socket_port)
 
   def start_link(_) do
     default_state = %{
@@ -24,10 +24,10 @@ defmodule Expunji.Server do
   end
 
   def init(state) do
-    :ets.new(@hosts_table_name, [:set, :named_table])
+    :ets.new(:hosts_table, [:set, :named_table])
     load_hosts_into_ets()
     :logger.info("Opening sockets")
-    {:ok, client_socket} = :gen_udp.open(53, [:binary, active: true])
+    {:ok, client_socket} = :gen_udp.open(@client_socket_port, [:binary, active: true])
     {:ok, nameserver_socket} = :gen_udp.open(@nameserver_socket_port, [:binary, active: false])
     :logger.info("Server up")
 
@@ -67,7 +67,7 @@ defmodule Expunji.Server do
     domain = DNSUtils.get_domain_from_record(record)
 
     {response, state} =
-      case :ets.lookup(@hosts_table_name, domain) do
+      case :ets.lookup(:hosts_table, domain) do
         [{_blocked}] ->
           :logger.info("Blocked #{domain}")
           state = Map.update!(state, :blocked_requests, &(&1 + 1))
@@ -84,7 +84,7 @@ defmodule Expunji.Server do
   end
 
   defp load_hosts_into_ets() do
-    :ets.delete_all_objects(@hosts_table_name)
-    :ets.insert(@hosts_table_name, Expunji.Hosts.parse_all_files())
+    :ets.delete_all_objects(:hosts_table)
+    :ets.insert(:hosts_table, Expunji.Hosts.parse_all_files())
   end
 end

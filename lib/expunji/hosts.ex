@@ -3,7 +3,7 @@ defmodule Expunji.Hosts do
   Functions to parse hosts files
   """
 
-  @hosts_dir "hosts"
+  @hosts_dir Application.fetch_env!(:expunji, :hosts_dir)
 
   def parse_all_files() do
     :logger.info("Loading hosts files...")

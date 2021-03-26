@@ -15,18 +15,18 @@ defmodule Expunji.Server do
     default_state = %{
       allowed_requests: 0,
       blocked_requests: 0,
-      receiving: true
+      socket: nil
     }
 
     GenServer.start_link(__MODULE__, default_state, name: __MODULE__)
   end
 
-  def init(default_state) do
+  def init(state) do
     :ets.new(@hosts_table_name, [:set, :named_table])
     load_hosts_into_ets()
-    {:ok, _socket} = :gen_udp.open(53, [:binary, active: true])
+    {:ok, socket} = :gen_udp.open(53, [:binary, active: true])
 
-    {:ok, default_state}
+    {:ok, %{state | socket: socket}}
   end
 
   def get_stats() do
@@ -38,10 +38,15 @@ defmodule Expunji.Server do
   end
 
   def handle_call(:get_stats, _from, state) do
+    %{allowed_requests: allowed, blocked_requests: blocked} = state
+    total = allowed + blocked
+    allowed_perc = allowed / total * 100
+    blocked_perc = blocked / total * 100
+
     :logger.info("""
-    Allowed: #{state.allowed_requests}
-    Blocked: #{state.blocked_requests}
-    Total: #{state.allowed_requests + state.blocked_requests}
+    Allowed: #{allowed_perc}% (#{state.allowed_requests} requests)
+    Blocked: #{blocked_perc}% (#{state.blocked_requests} requests)
+    Total: #{total} requests
     """)
 
     {:reply, :ok, state}

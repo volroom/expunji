@@ -4,7 +4,6 @@ defmodule Expunji.DNSUtils do
   """
 
   @blocked_ip {0, 0, 0, 0}
-  @dns_server_port 51234
   @true_dns_server {1, 1, 1, 1}
 
   def decode(packet) do
@@ -39,12 +38,9 @@ defmodule Expunji.DNSUtils do
     :inet_dns.encode({:dns_rec, header, qdlist, anlist, nslist, arlist})
   end
 
-  def forward_real_dns_response(packet) do
-    {:ok, socket} = :gen_udp.open(@dns_server_port, [:binary, active: false])
+  def forward_real_dns_response(%{nameserver_socket: socket}, packet) do
     :gen_udp.send(socket, @true_dns_server, 53, packet)
     {:ok, {_ip, _port, response}} = :gen_udp.recv(socket, 0)
-    :gen_udp.close(socket)
-
     response
   end
 end

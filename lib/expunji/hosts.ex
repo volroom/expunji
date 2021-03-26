@@ -15,7 +15,6 @@ defmodule Expunji.Hosts do
         parse_file(Path.join(@hosts_dir, filename))
       end)
 
-    :logger.info("Finished loading hosts files")
     hosts
   end
 

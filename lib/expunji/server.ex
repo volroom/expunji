@@ -9,13 +9,15 @@ defmodule Expunji.Server do
 
   alias Expunji.DNSUtils
 
+  @nameserver_socket_port 51234
   @hosts_table_name :hosts
 
   def start_link(_) do
     default_state = %{
       allowed_requests: 0,
       blocked_requests: 0,
-      socket: nil
+      client_socket: nil,
+      nameserver_socket: nil
     }
 
     GenServer.start_link(__MODULE__, default_state, name: __MODULE__)
@@ -24,9 +26,12 @@ defmodule Expunji.Server do
   def init(state) do
     :ets.new(@hosts_table_name, [:set, :named_table])
     load_hosts_into_ets()
-    {:ok, socket} = :gen_udp.open(53, [:binary, active: true])
+    :logger.info("Opening sockets")
+    {:ok, client_socket} = :gen_udp.open(53, [:binary, active: true])
+    {:ok, nameserver_socket} = :gen_udp.open(@nameserver_socket_port, [:binary, active: false])
+    :logger.info("Server up")
 
-    {:ok, %{state | socket: socket}}
+    {:ok, %{state | client_socket: client_socket, nameserver_socket: nameserver_socket}}
   end
 
   def get_stats() do
@@ -40,8 +45,8 @@ defmodule Expunji.Server do
   def handle_call(:get_stats, _from, state) do
     %{allowed_requests: allowed, blocked_requests: blocked} = state
     total = allowed + blocked
-    allowed_perc = allowed / total * 100
-    blocked_perc = blocked / total * 100
+    allowed_perc = Float.round(allowed / total * 100, 2)
+    blocked_perc = Float.round(blocked / total * 100, 2)
 
     :logger.info("""
     Allowed: #{allowed_perc}% (#{state.allowed_requests} requests)
@@ -71,7 +76,7 @@ defmodule Expunji.Server do
         [] ->
           :logger.info("Allowed #{domain}")
           state = Map.update!(state, :allowed_requests, &(&1 + 1))
-          {DNSUtils.forward_real_dns_response(packet), state}
+          {DNSUtils.forward_real_dns_response(state, packet), state}
       end
 
     :gen_udp.send(socket, client_ip, port, response)
@@ -79,7 +84,6 @@ defmodule Expunji.Server do
   end
 
   defp load_hosts_into_ets() do
-    # TODO: rename/overwrite instead of delete then load
     :ets.delete_all_objects(@hosts_table_name)
     :ets.insert(@hosts_table_name, Expunji.Hosts.parse_all_files())
   end

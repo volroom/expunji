@@ -11,6 +11,7 @@ defmodule Expunji.Hosts do
     hosts =
       @hosts_dir
       |> File.ls!()
+      |> Enum.filter(& &1 != ".gitignore")
       |> Enum.flat_map(fn filename ->
         parse_file(Path.join(@hosts_dir, filename))
       end)

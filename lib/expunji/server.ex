@@ -10,6 +10,8 @@ defmodule Expunji.Server do
   alias Expunji.DNSUtils
 
   @client_socket_port Application.fetch_env!(:expunji, :client_socket_port)
+  @nameserver_dest_port Application.fetch_env!(:expunji, :nameserver_dest_port)
+  @nameserver_ip Application.fetch_env!(:expunji, :nameserver_ip)
   @nameserver_socket_port Application.fetch_env!(:expunji, :nameserver_socket_port)
 
   def start_link(_) do
@@ -23,15 +25,22 @@ defmodule Expunji.Server do
     GenServer.start_link(__MODULE__, default_state, name: __MODULE__)
   end
 
+  @impl true
   def init(state) do
+    :ets.new(:active_queries, [:duplicate_bag, :named_table])
     :ets.new(:hosts_table, [:set, :named_table])
-    load_hosts_into_ets()
+
     :logger.info("Opening sockets")
     {:ok, client_socket} = :gen_udp.open(@client_socket_port, [:binary, active: true])
-    {:ok, nameserver_socket} = :gen_udp.open(@nameserver_socket_port, [:binary, active: false])
+    {:ok, nameserver_socket} = :gen_udp.open(@nameserver_socket_port, [:binary, active: true])
+    state = %{state | client_socket: client_socket, nameserver_socket: nameserver_socket}
     :logger.info("Server up")
 
-    {:ok, %{state | client_socket: client_socket, nameserver_socket: nameserver_socket}}
+    {:ok, state, {:continue, :load_hosts}}
+  end
+
+  def clear_active_queries() do
+    GenServer.call(__MODULE__, :clear_active_queries)
   end
 
   def get_stats() do
@@ -39,9 +48,17 @@ defmodule Expunji.Server do
   end
 
   def reload_hosts() do
-    GenServer.call(__MODULE__, :reload_hosts)
+    GenServer.cast(__MODULE__, :reload_hosts)
   end
 
+  @impl true
+  def handle_call(:clear_active_queries, _from, state) do
+    :ets.delete_all_objects(:active_queries)
+
+    {:reply, :ok, state}
+  end
+
+  @impl true
   def handle_call(:get_stats, _from, state) do
     %{allowed_requests: allowed, blocked_requests: blocked} = state
     total = allowed + blocked
@@ -49,42 +66,97 @@ defmodule Expunji.Server do
     blocked_perc = Float.round(blocked / total * 100, 2)
 
     :logger.info("""
-    Allowed: #{allowed_perc}% (#{state.allowed_requests} requests)
-    Blocked: #{blocked_perc}% (#{state.blocked_requests} requests)
+    Allowed: #{allowed_perc}% (#{allowed} requests)
+    Blocked: #{blocked_perc}% (#{blocked} requests)
     Total: #{total} requests
     """)
 
     {:reply, :ok, state}
   end
 
-  def handle_call(:reload_hosts, _from, state) do
-    load_hosts_into_ets()
-    {:reply, :ok, state}
+  @impl true
+  def handle_info(
+        {:udp, socket, client_ip, port, packet},
+        %{client_socket: client_socket, nameserver_socket: nameserver_socket} = state
+      )
+      when socket == client_socket do
+    with {:ok, record} <- :inet_dns.decode(packet),
+         {:ok, domain} <- DNSUtils.get_domain_from_record(record) do
+      state =
+        case :ets.lookup(:hosts_table, domain) do
+          [{_blocked}] ->
+            :logger.info("Blocked #{domain}")
+            response = DNSUtils.make_blocked_dns_response(record)
+            :gen_udp.send(socket, client_ip, port, response)
+
+            Map.update!(state, :blocked_requests, &(&1 + 1))
+
+          [] ->
+            :logger.info("Allowed #{domain}")
+            request_id = DNSUtils.get_request_id_from_record(record)
+            :ets.insert(:active_queries, {domain, {client_ip, port, request_id}})
+            :gen_udp.send(nameserver_socket, @nameserver_ip, @nameserver_dest_port, packet)
+
+            Map.update!(state, :allowed_requests, &(&1 + 1))
+        end
+
+      {:noreply, state}
+    else
+      _ ->
+        :logger.error("Bad query: #{packet}")
+        {:noreply, state}
+    end
   end
 
-  def handle_info({:udp, socket, client_ip, port, packet}, state) do
-    record = DNSUtils.decode(packet)
-    domain = DNSUtils.get_domain_from_record(record)
-
-    {response, state} =
-      case :ets.lookup(:hosts_table, domain) do
-        [{_blocked}] ->
-          :logger.info("Blocked #{domain}")
-          state = Map.update!(state, :blocked_requests, &(&1 + 1))
-          {DNSUtils.make_blocked_dns_response(record), state}
+  @impl true
+  def handle_info(
+        {:udp, socket, _nameserver_ip, _nameserver_port, packet},
+        %{client_socket: client_socket, nameserver_socket: nameserver_socket} = state
+      )
+      when socket == nameserver_socket do
+    with {:ok, record} <- :inet_dns.decode(packet),
+         {:ok, domain} <- DNSUtils.get_domain_from_record(record) do
+      case :ets.take(:active_queries, domain) do
+        [{_, {client_ip, client_port, _request_id}}] ->
+          :gen_udp.send(client_socket, client_ip, client_port, packet)
 
         [] ->
-          :logger.info("Allowed #{domain}")
-          state = Map.update!(state, :allowed_requests, &(&1 + 1))
-          {DNSUtils.forward_real_dns_response(state, packet), state}
+          :logger.info("Abandoned query: #{domain}")
+
+        queries ->
+          Enum.map(queries, fn {_, {client_ip, client_port, request_id}} ->
+            response = DNSUtils.make_allowed_dns_response(record, request_id)
+            :gen_udp.send(client_socket, client_ip, client_port, response)
+          end)
       end
 
-    :gen_udp.send(socket, client_ip, port, response)
+      {:noreply, state}
+    else
+      _ ->
+        :logger.error("Bad nameserver response: #{packet}")
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_cast(:reload_hosts, state) do
+    load_hosts_into_ets()
+
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_continue(:load_hosts, state) do
+    load_hosts_into_ets()
+
     {:noreply, state}
   end
 
   defp load_hosts_into_ets() do
+    hosts = Expunji.Hosts.parse_all_files()
+    :logger.info("Finished loading hosts")
+
     :ets.delete_all_objects(:hosts_table)
-    :ets.insert(:hosts_table, Expunji.Hosts.parse_all_files())
+    :ets.insert(:hosts_table, hosts)
   end
 end

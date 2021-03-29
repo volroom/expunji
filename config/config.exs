@@ -2,7 +2,7 @@ import Config
 
 {:ok, blocked_ip} =
   "EXPUNJI_BLOCKED_IP"
-  |> System.get_env("1.1.1.1")
+  |> System.get_env("0.0.0.0")
   |> String.to_charlist()
   |> :inet.parse_ipv4_address()
 
@@ -20,4 +20,4 @@ config :expunji,
     System.get_env("EXPUNJI_NAMESERVER_DEST_PORT", "53") |> String.to_integer(),
   nameserver_ip: nameserver_ip,
   nameserver_socket_port:
-    System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "51234") |> String.to_integer()
+    System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer()

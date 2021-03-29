@@ -4,44 +4,45 @@ defmodule Expunji.DNSUtils do
   """
 
   @blocked_ip Application.fetch_env!(:expunji, :blocked_ip)
-  @nameserver_dest_port Application.fetch_env!(:expunji, :nameserver_dest_port)
-  @nameserver_ip Application.fetch_env!(:expunji, :nameserver_ip)
 
-  def decode(packet) do
-    {:ok, record} = :inet_dns.decode(packet)
-    record
-  end
+  def get_domain_from_record({:dns_rec, _, [{:dns_query, domain, _, _}], _, _, _}),
+    do: {:ok, domain}
 
-  def get_domain_from_record({:dns_rec, _, [query], _, _, _}), do: get_domain_from_query(query)
-
-  def get_domain_from_query({:dns_query, domain, _, _}), do: domain
-  def get_type_from_query({:dns_query, _, type, _}), do: type
+  def get_domain_from_record(_), do: {:error, "INVALID_RECORD"}
 
   def make_blocked_dns_response(record) do
     {:dns_rec, request_header, [query], _, _, _} = record
-    domain = get_domain_from_query(query)
-    type = get_type_from_query(query)
+    {:dns_query, domain, _type, class} = query
 
     header = make_response_header(request_header)
-    anlist = [{:dns_rr, domain, type, :in, 0, 2, @blocked_ip, nil, [], false}]
+    anlist = [{:dns_rr, domain, :a, class, 0, 2, @blocked_ip, nil, [], false}]
+
     make_response_from_record(record, header, anlist)
   end
 
-  def make_response_header(request_header) do
+  def make_allowed_dns_response(record, request_id) do
+    {:dns_rec, request_header, _, anlist, _, _} = record
+    header = make_response_header(request_header, request_id)
+
+    make_response_from_record(record, header, anlist)
+  end
+
+  def make_response_header(request_header, request_id \\ nil, authoritative \\ 1) do
     {:dns_header, id, _, opcode, _, _, rd, _, pr, rcode} = request_header
 
-    {:dns_header, id, 1, opcode, 1, 0, rd, 0, pr, rcode}
+    {:dns_header, request_id || id, 1, opcode, authoritative, 0, rd, 0, pr, rcode}
+  end
+
+  def get_request_id_from_record(record) do
+    {:dns_rec, request_header, _, _, _, _} = record
+    {:dns_header, id, _, _, _, _, _, _, _, _} = request_header
+
+    id
   end
 
   defp make_response_from_record(record, header, anlist) do
     {:dns_rec, _, qdlist, _, nslist, arlist} = record
 
     :inet_dns.encode({:dns_rec, header, qdlist, anlist, nslist, arlist})
-  end
-
-  def forward_real_dns_response(%{nameserver_socket: socket}, packet) do
-    :gen_udp.send(socket, @nameserver_ip, @nameserver_dest_port, packet)
-    {:ok, {_ip, _port, response}} = :gen_udp.recv(socket, 0)
-    response
   end
 end

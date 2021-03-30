@@ -3,7 +3,8 @@
 **DNS Sinkhole made with Elixir**
 
 ## Setup
-* Install Elixir  - https://elixir-lang.org/install.html
+* Install Elixir - https://elixir-lang.org/install.html
+* Install dependencies - `mix deps.get`
 * Download some blocklists, and put them in `hosts/`
 * Start server with `iex -S mix`
 

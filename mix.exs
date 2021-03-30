@@ -13,12 +13,16 @@ defmodule Expunji.MixProject do
 
   def application do
     [
+      applications: [:cachex],
       extra_applications: [:logger],
       mod: {Expunji.Application, []}
     ]
   end
 
   defp deps do
-    []
+    [
+      {:cachex, "~> 3.3"},
+      {:credo, "~> 1.5", only: [:dev, :test], runtime: false}
+    ]
   end
 end

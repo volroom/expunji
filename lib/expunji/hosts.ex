@@ -4,13 +4,14 @@ defmodule Expunji.Hosts do
   """
 
   @hosts_dir Application.compile_env!(:expunji, :hosts_dir)
+  @file_module Application.compile_env!(:expunji, :file_module)
 
   def parse_all_files() do
     :logger.info("Loading hosts files...")
 
     hosts =
       @hosts_dir
-      |> File.ls!()
+      |> @file_module.ls!()
       |> Enum.filter(&(&1 != ".gitignore"))
       |> Enum.flat_map(fn filename ->
         parse_file(Path.join(@hosts_dir, filename))
@@ -23,7 +24,7 @@ defmodule Expunji.Hosts do
     :logger.info(filename)
 
     filename
-    |> File.stream!()
+    |> @file_module.stream!()
     |> Enum.flat_map(&parse_line(&1))
   end
 

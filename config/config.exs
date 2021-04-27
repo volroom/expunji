@@ -15,9 +15,12 @@ import Config
 config :expunji,
   blocked_ip: blocked_ip,
   client_socket_port: System.get_env("EXPUNJI_CLIENT_SOCKET_PORT", "53") |> String.to_integer(),
+  file_module: File,
   hosts_dir: System.get_env("EXPUNJI_HOSTS_DIR", "hosts/"),
   nameserver_dest_port:
     System.get_env("EXPUNJI_NAMESERVER_DEST_PORT", "53") |> String.to_integer(),
   nameserver_ip: nameserver_ip,
   nameserver_socket_port:
     System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer()
+
+import_config "#{Mix.env()}.exs"

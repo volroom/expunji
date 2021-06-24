@@ -1,4 +1,5 @@
 use Mix.Config
 
 config :expunji,
-  file_module: Expunji.MockFile
+  children: [],
+  hosts_file_reader: Expunji.HostsFileReaderMock

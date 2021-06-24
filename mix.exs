@@ -20,7 +20,6 @@ defmodule Expunji.MixProject do
 
   def application do
     [
-      applications: [:cachex],
       extra_applications: [:logger],
       mod: {Expunji.Application, []}
     ]
@@ -28,10 +27,10 @@ defmodule Expunji.MixProject do
 
   defp deps do
     [
-      {:cachex, "~> 3.3"},
+      {:cachex, "~> 3.4"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.14.0", only: :test},
-      {:mox, "~> 1.0"}
+      {:excoveralls, "~> 0.14.1", only: :test},
+      {:mox, "~> 1.0", only: :test}
     ]
   end
 end

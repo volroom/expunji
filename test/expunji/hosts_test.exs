@@ -1,15 +1,26 @@
 defmodule Expunji.HostsTest do
   use ExUnit.Case, async: true
+  import Mox
 
   alias Expunji.Hosts
+  alias Expunji.HostsFileReaderMock
+
+  setup :verify_on_exit!
 
   describe "parse_file/1" do
-    assert Hosts.parse_file("hosts") == [[], [], [{'baddomain.com'}], [{'baddomain.org'}]]
+    test "loads a file and parses each line" do
+      file_lines = ["# Comment", "", "127.0.0.1 baddomain.com", "127.0.0.1 baddomain.org"]
+      expect(HostsFileReaderMock, :stream!, fn "hosts" -> file_lines end)
+      expected_result = [{'baddomain.com'}, {'baddomain.org'}]
+
+      assert Hosts.parse_file("hosts") == expected_result
+    end
   end
 
   describe "parse_line/1" do
     test "skips blank lines" do
       assert Hosts.parse_line(" ") == []
+      assert Hosts.parse_line("") == []
     end
 
     test "skips comments" do

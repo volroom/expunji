@@ -16,8 +16,9 @@ defmodule Expunji.Server do
 
   def start_link(_) do
     default_state = %{
-      allowed_requests: 0,
-      blocked_requests: 0,
+      abandoned: 0,
+      allowed: 0,
+      blocked: 0,
       client_socket: nil,
       nameserver_socket: nil
     }
@@ -39,12 +40,21 @@ defmodule Expunji.Server do
     {:ok, state, {:continue, :load_hosts}}
   end
 
-  def clear_active_queries() do
-    GenServer.call(__MODULE__, :clear_active_queries)
-  end
+  def get_state(), do: GenServer.call(__MODULE__, :get_state)
 
   def get_stats() do
-    GenServer.call(__MODULE__, :get_stats)
+    %{abandoned: abandoned, allowed: allowed, blocked: blocked} = get_state()
+    total = abandoned + allowed + blocked
+    abandoned_perc = Float.round(abandoned / total * 100, 2)
+    allowed_perc = Float.round(allowed / total * 100, 2)
+    blocked_perc = Float.round(blocked / total * 100, 2)
+
+    :logger.info("""
+    Abandoned: #{abandoned_perc}% (#{abandoned} requests)
+    Allowed: #{allowed_perc}% (#{allowed} requests)
+    Blocked: #{blocked_perc}% (#{blocked} requests)
+    Total: #{total} requests
+    """)
   end
 
   def reload_hosts() do
@@ -52,100 +62,7 @@ defmodule Expunji.Server do
   end
 
   @impl true
-  def handle_call(:clear_active_queries, _from, state) do
-    :ets.delete_all_objects(:active_queries)
-
-    {:reply, :ok, state}
-  end
-
-  @impl true
-  def handle_call(:get_stats, _from, state) do
-    %{allowed_requests: allowed, blocked_requests: blocked} = state
-    total = allowed + blocked
-    allowed_perc = Float.round(allowed / total * 100, 2)
-    blocked_perc = Float.round(blocked / total * 100, 2)
-
-    :logger.info("""
-    Allowed: #{allowed_perc}% (#{allowed} requests)
-    Blocked: #{blocked_perc}% (#{blocked} requests)
-    Total: #{total} requests
-    """)
-
-    {:reply, :ok, state}
-  end
-
-  @impl true
-  def handle_info(
-        {:udp, socket, client_ip, port, packet},
-        %{client_socket: client_socket, nameserver_socket: nameserver_socket} = state
-      )
-      when socket == client_socket do
-    with {:ok, record} <- :inet_dns.decode(packet),
-         {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
-      state =
-        case :ets.lookup(:hosts_table, domain) do
-          [{_blocked}] ->
-            :logger.info("Blocked #{domain}")
-            response = DNSUtils.make_blocked_dns_response(record)
-            :gen_udp.send(socket, client_ip, port, response)
-
-            Map.update!(state, :blocked_requests, &(&1 + 1))
-
-          [] ->
-            request_id = DNSUtils.get_request_id_from_record(record)
-
-            case Cachex.get(:dns_cache, key) do
-              {:ok, nil} ->
-                :logger.info("Allowed #{domain}")
-                :ets.insert(:active_queries, {key, {client_ip, port, request_id}})
-                :gen_udp.send(nameserver_socket, @nameserver_ip, @nameserver_dest_port, packet)
-
-              {:ok, cached_response} ->
-                :logger.info("Allowed (from cache) #{domain}")
-                response = DNSUtils.make_allowed_dns_response(cached_response, request_id, 0)
-                :gen_udp.send(socket, client_ip, port, response)
-            end
-
-            Map.update!(state, :allowed_requests, &(&1 + 1))
-        end
-
-      {:noreply, state}
-    else
-      _ ->
-        :logger.error("Bad query: #{packet}")
-        {:noreply, state}
-    end
-  end
-
-  @impl true
-  def handle_info(
-        {:udp, socket, _nameserver_ip, _nameserver_port, packet},
-        %{client_socket: client_socket, nameserver_socket: nameserver_socket} = state
-      )
-      when socket == nameserver_socket do
-    with {:ok, record} <- :inet_dns.decode(packet),
-         {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
-      ttl = DNSUtils.get_ttl_from_record(record)
-
-      if ttl > 0 do
-        Cachex.put(:dns_cache, key, record, ttl: :timer.seconds(ttl))
-      end
-
-      case :ets.take(:active_queries, key) do
-        [{_, {client_ip, client_port, _request_id}}] ->
-          :gen_udp.send(client_socket, client_ip, client_port, packet)
-
-        [] ->
-          :logger.info("Abandoned query: #{domain}")
-      end
-
-      {:noreply, state}
-    else
-      _ ->
-        :logger.error("Bad nameserver response: #{packet}")
-        {:noreply, state}
-    end
-  end
+  def handle_call(:get_state, _from, state), do: {:reply, state, state}
 
   @impl true
   def handle_cast(:reload_hosts, state) do
@@ -161,11 +78,88 @@ defmodule Expunji.Server do
     {:noreply, state}
   end
 
-  defp load_hosts_into_ets() do
+  @impl true
+  def handle_info({:udp, socket, _, _, packet} = message, %{client_socket: client_socket} = state)
+      when socket == client_socket do
+    with {:ok, record} <- :inet_dns.decode(packet),
+         {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
+      state =
+        case :ets.lookup(:hosts_table, domain) do
+          [{_blocked}] -> send_blocked_response(state, message, record, domain)
+          [] -> allow_request(state, message, record, domain, key)
+        end
+
+      {:noreply, state}
+    else
+      _ ->
+        :logger.error("Bad query: #{packet}")
+        {:noreply, state}
+    end
+  end
+
+  @impl true
+  def handle_info({:udp, socket, _, _, packet} = message, %{nameserver_socket: ns_socket} = state)
+      when socket == ns_socket do
+    with {:ok, record} <- :inet_dns.decode(packet),
+         {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
+      state = send_allowed_response(state, message, record, domain, key)
+      {:noreply, state}
+    else
+      _ ->
+        :logger.error("Bad nameserver response: #{packet}")
+        {:noreply, state}
+    end
+  end
+
+  def load_hosts_into_ets() do
     hosts = Expunji.Hosts.parse_all_files()
     :logger.info("Finished loading hosts")
 
     :ets.delete_all_objects(:hosts_table)
     :ets.insert(:hosts_table, hosts)
+  end
+
+  def allow_request(state, {:udp, client_socket, ip, port, packet}, record, domain, key) do
+    request_id = DNSUtils.get_request_id_from_record(record)
+
+    case Cachex.get(:dns_cache, key) do
+      {:ok, nil} ->
+        :ets.insert(:active_queries, {key, {ip, port, request_id}})
+        :gen_udp.send(state.nameserver_socket, @nameserver_ip, @nameserver_dest_port, packet)
+        state
+
+      {:ok, cached_response} ->
+        :logger.info("Allowed (from cache) #{domain}")
+        response = DNSUtils.make_allowed_dns_response(cached_response, request_id, 0)
+        :gen_udp.send(client_socket, ip, port, response)
+        Map.update!(state, :allowed, &(&1 + 1))
+    end
+  end
+
+  def send_allowed_response(state, {:udp, _nameserver_socket, _, _, packet}, record, domain, key) do
+    ttl = DNSUtils.get_ttl_from_record(record)
+
+    if ttl > 0 do
+      Cachex.put(:dns_cache, key, record, ttl: :timer.seconds(ttl))
+    end
+
+    case :ets.take(:active_queries, key) do
+      [{_, {ip, port, _request_id}}] ->
+        :logger.info("Allowed #{domain}")
+        :gen_udp.send(state.client_socket, ip, port, packet)
+        Map.update!(state, :allowed, &(&1 + 1))
+
+      [] ->
+        :logger.error("Abandoned query: #{domain}")
+        Map.update!(state, :abandoned, &(&1 + 1))
+    end
+  end
+
+  def send_blocked_response(state, {:udp, client_socket, ip, port, _}, record, domain) do
+    :logger.info("Blocked #{domain}")
+    response = DNSUtils.make_blocked_dns_response(record)
+    :gen_udp.send(client_socket, ip, port, response)
+
+    Map.update!(state, :blocked, &(&1 + 1))
   end
 end

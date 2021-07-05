@@ -24,4 +24,6 @@ config :expunji,
   nameserver_socket_port:
     System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer()
 
+config :logger, level: :info
+
 import_config "#{Mix.env()}.exs"

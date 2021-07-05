@@ -7,6 +7,21 @@ defmodule Expunji.HostsTest do
 
   setup :verify_on_exit!
 
+  describe "parse_all_files/0" do
+    test "loads and parses all files in the hosts folder into a list of tuples" do
+      expect(HostsFileReaderMock, :ls!, fn _ -> ["hosts1", "hosts2"] end)
+
+      expect(HostsFileReaderMock, :stream!, 2, fn
+        "hosts/hosts1" -> ["# Comment", "", "127.0.0.1 baddomain.com", "127.0.0.1 baddomain.org"]
+        "hosts/hosts2" -> ["127.0.0.1 baddomain.net"]
+      end)
+
+      expected_result = [{'baddomain.com'}, {'baddomain.org'}, {'baddomain.net'}]
+
+      assert Hosts.parse_all_files() == expected_result
+    end
+  end
+
   describe "parse_file/1" do
     test "loads a file and parses each line" do
       file_lines = ["# Comment", "", "127.0.0.1 baddomain.com", "127.0.0.1 baddomain.org"]

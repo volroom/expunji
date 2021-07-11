@@ -1,9 +1,11 @@
 defmodule Expunji.ServerTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case
+  import Mox
 
   alias Expunji.Server
+  alias Expunji.HostsFileReaderMock
 
-  setup :start_server
+  setup :set_mox_global
 
   describe "dns" do
     test "returns a blocked response for domains in the blocked list" do
@@ -17,8 +19,15 @@ defmodule Expunji.ServerTest do
     end
   end
 
-  defp start_server(_) do
-    {:ok, server_pid} = Server.start_link(nil)
-    [server_pid: server_pid]
+  describe "get_state/0" do
+    test "can get state", context do
+      {:ok, server_pid} = Server.start_link(nil)
+      expect(HostsFileReaderMock, :ls!, fn _ -> ["hosts1"] end)
+      expect(HostsFileReaderMock, :stream!, fn _ -> [""] end)
+      allow(HostsFileReaderMock, self(), server_pid)
+
+
+      assert Server.default_state() == Server.get_state()
+    end
   end
 end

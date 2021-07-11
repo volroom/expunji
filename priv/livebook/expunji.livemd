@@ -1,0 +1,24 @@
+# Expunji Control Panel
+
+## Get Stats
+
+```elixir
+%{abandoned: abandoned, allowed: allowed, blocked: blocked} = Expunji.Server.get_state()
+total = abandoned + allowed + blocked
+abandoned_perc = Float.round(abandoned / total * 100, 2)
+allowed_perc = Float.round(allowed / total * 100, 2)
+blocked_perc = Float.round(blocked / total * 100, 2)
+
+"""
+Abandoned: #{abandoned_perc}% (#{abandoned} requests)
+Allowed: #{allowed_perc}% (#{allowed} requests)
+Blocked: #{blocked_perc}% (#{blocked} requests)
+Total: #{total} requests
+"""
+```
+
+## Reload Hosts
+
+```elixir
+Expunji.Server.reload_hosts()
+```

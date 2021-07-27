@@ -1,0 +1,6 @@
+{
+  "skip_files": [
+    "dns_client/dns_client.ex",
+    "hosts/hosts_file_reader.ex"
+  ]
+}

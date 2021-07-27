@@ -14,7 +14,9 @@ defmodule Expunji.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test
-      ]
+      ],
+      elixirc_options: [warnings_as_errors: true],
+      elixirc_paths: elixirc_paths(Mix.env())
     ]
   end
 
@@ -33,4 +35,7 @@ defmodule Expunji.MixProject do
       {:mox, "~> 1.0", only: :test}
     ]
   end
+
+  defp elixirc_paths(:test), do: ["test/support", "lib"]
+  defp elixirc_paths(_), do: ["lib"]
 end

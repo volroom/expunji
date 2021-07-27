@@ -10,17 +10,16 @@ defmodule Expunji.Server do
   alias Expunji.DNSUtils
 
   @client_socket_port Application.compile_env!(:expunji, :client_socket_port)
-  @nameserver_dest_port Application.compile_env!(:expunji, :nameserver_dest_port)
-  @nameserver_ip Application.compile_env!(:expunji, :nameserver_ip)
+  @dns_client Application.compile_env!(:expunji, :dns_client)
   @nameserver_socket_port Application.compile_env!(:expunji, :nameserver_socket_port)
 
   def start_link(_) do
     GenServer.start_link(__MODULE__, default_state(), name: __MODULE__)
   end
 
-  @impl true
+  @impl GenServer
   def init(state) do
-    :ets.new(:active_queries, [:set, :named_table])
+    :ets.new(:active_queries, [:set, :named_table, :public])
     :ets.new(:hosts_table, [:set, :named_table, :public, read_concurrency: true])
 
     :logger.info("Opening sockets")
@@ -37,6 +36,7 @@ defmodule Expunji.Server do
       abandoned: 0,
       allowed: 0,
       blocked: 0,
+      cache_hits: 0,
       client_socket: nil,
       nameserver_socket: nil
     }
@@ -87,32 +87,36 @@ defmodule Expunji.Server do
     end
   end
 
-  def load_hosts_into_ets() do
+  defp load_hosts_into_ets() do
     hosts = Expunji.Hosts.parse_all_files()
-    :logger.info("Finished loading hosts")
-
     :ets.delete_all_objects(:hosts_table)
     :ets.insert(:hosts_table, hosts)
+    :logger.info("Finished loading hosts")
   end
 
-  def allow_request(state, {:udp, client_socket, ip, port, packet}, record, domain, key) do
+  defp allow_request(state, {:udp, client_socket, ip, port, packet}, record, domain, key) do
     request_id = DNSUtils.get_request_id_from_record(record)
 
     case Cachex.get(:dns_cache, key) do
       {:ok, nil} ->
         :ets.insert(:active_queries, {key, {ip, port, request_id}})
-        :gen_udp.send(state.nameserver_socket, @nameserver_ip, @nameserver_dest_port, packet)
+        @dns_client.query_nameserver(packet, state.nameserver_socket)
         state
 
       {:ok, cached_response} ->
+        cached_response
+        |> DNSUtils.make_allowed_dns_response(request_id, 0)
+        |> @dns_client.respond_to_client(client_socket, ip, port)
+
         :logger.info("Allowed (from cache) #{domain}")
-        response = DNSUtils.make_allowed_dns_response(cached_response, request_id, 0)
-        :gen_udp.send(client_socket, ip, port, response)
-        Map.update!(state, :allowed, &(&1 + 1))
+
+        state
+        |> Map.update!(:allowed, &(&1 + 1))
+        |> Map.update!(:cache_hits, &(&1 + 1))
     end
   end
 
-  def send_allowed_response(state, {:udp, _nameserver_socket, _, _, packet}, record, domain, key) do
+  defp send_allowed_response(state, {:udp, _nameserver_socket, _, _, packet}, record, domain, key) do
     ttl = DNSUtils.get_ttl_from_record(record)
 
     if ttl > 0 do
@@ -121,8 +125,8 @@ defmodule Expunji.Server do
 
     case :ets.take(:active_queries, key) do
       [{_, {ip, port, _request_id}}] ->
+        @dns_client.respond_to_client(packet, state.client_socket, ip, port)
         :logger.info("Allowed #{domain}")
-        :gen_udp.send(state.client_socket, ip, port, packet)
         Map.update!(state, :allowed, &(&1 + 1))
 
       [] ->
@@ -131,11 +135,12 @@ defmodule Expunji.Server do
     end
   end
 
-  def send_blocked_response(state, {:udp, client_socket, ip, port, _}, record, domain) do
-    :logger.info("Blocked #{domain}")
-    response = DNSUtils.make_blocked_dns_response(record)
-    :gen_udp.send(client_socket, ip, port, response)
+  defp send_blocked_response(state, {:udp, client_socket, ip, port, _}, record, domain) do
+    record
+    |> DNSUtils.make_blocked_dns_response()
+    |> @dns_client.respond_to_client(client_socket, ip, port)
 
+    :logger.info("Blocked #{domain}")
     Map.update!(state, :blocked, &(&1 + 1))
   end
 end

@@ -5,7 +5,7 @@ defmodule Expunji.Application do
 
   @children Application.compile_env!(:expunji, :children)
 
-  @impl true
+  @impl Application
   def start(_type, _args) do
     opts = [strategy: :one_for_one, name: Expunji.Supervisor]
     Supervisor.start_link(@children, opts)

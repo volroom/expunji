@@ -4,8 +4,6 @@ defmodule Expunji.DNSUtils do
   """
 
   @blocked_ip Application.compile_env!(:expunji, :blocked_ip)
-  @blocked_ttl 2
-  @domain_not_found_ttl 5 * 60
 
   def get_key_from_record({:dns_rec, _, [{:dns_query, domain, type, class}], _, _, _}) do
     {:ok, {domain, type, class}}
@@ -13,8 +11,7 @@ defmodule Expunji.DNSUtils do
 
   def get_key_from_record(_), do: {:error, "INVALID_RECORD"}
 
-  def get_request_id_from_record(record) do
-    {:dns_rec, request_header, _, _, _, _} = record
+  def get_request_id_from_record({:dns_rec, request_header, _, _, _, _}) do
     {:dns_header, id, _, _, _, _, _, _, _, _} = request_header
 
     id
@@ -26,16 +23,15 @@ defmodule Expunji.DNSUtils do
         ttl
 
       [] ->
-        @domain_not_found_ttl
+        default_ttl()
     end
   end
 
-  def make_blocked_dns_response(record) do
-    {:dns_rec, request_header, [query], _, _, _} = record
+  def make_blocked_dns_response({:dns_rec, request_header, [query], _, _, _} = record) do
     {:dns_query, domain, _type, class} = query
 
     header = make_response_header(request_header)
-    anlist = [{:dns_rr, domain, :a, class, 0, @blocked_ttl, @blocked_ip, nil, [], false}]
+    anlist = [{:dns_rr, domain, :a, class, 0, blocked_ttl(), @blocked_ip, nil, [], false}]
 
     make_response_from_record(record, header, anlist)
   end
@@ -53,9 +49,10 @@ defmodule Expunji.DNSUtils do
     {:dns_header, request_id || id, 1, opcode, authoritative, 0, rd, 0, pr, rcode}
   end
 
-  defp make_response_from_record(record, header, anlist) do
-    {:dns_rec, _, qdlist, _, nslist, arlist} = record
+  def blocked_ttl, do: 2
+  def default_ttl, do: 300
 
+  defp make_response_from_record({:dns_rec, _, qdlist, _, nslist, arlist}, header, anlist) do
     :inet_dns.encode({:dns_rec, header, qdlist, anlist, nslist, arlist})
   end
 end

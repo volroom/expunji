@@ -14,10 +14,17 @@ import Config
 
 config :expunji,
   blocked_ip: blocked_ip,
+  children: [{Cachex, name: :dns_cache}, Expunji.Server],
   client_socket_port: System.get_env("EXPUNJI_CLIENT_SOCKET_PORT", "53") |> String.to_integer(),
+  dns_client: Expunji.DNSClient,
   hosts_dir: System.get_env("EXPUNJI_HOSTS_DIR", "hosts/"),
+  hosts_file_reader: Expunji.HostsFileReader,
   nameserver_dest_port:
     System.get_env("EXPUNJI_NAMESERVER_DEST_PORT", "53") |> String.to_integer(),
   nameserver_ip: nameserver_ip,
   nameserver_socket_port:
     System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer()
+
+config :logger, level: :info
+
+import_config "#{Mix.env()}.exs"

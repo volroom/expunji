@@ -23,7 +23,8 @@ config :expunji,
     System.get_env("EXPUNJI_NAMESERVER_DEST_PORT", "53") |> String.to_integer(),
   nameserver_ip: nameserver_ip,
   nameserver_socket_port:
-    System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer()
+    System.get_env("EXPUNJI_NAMESERVER_SOCKET_PORT", "0") |> String.to_integer(),
+  whitelist_path: System.get_env("EXPUNJI_WHITELIST_PATH", "whitelist")
 
 config :logger, level: :info
 

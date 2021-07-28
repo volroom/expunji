@@ -22,6 +22,7 @@ defmodule Expunji.ServerTest do
   setup_all do
     Mox.stub(DNSClientMock, :query_nameserver, fn _, _ -> :ok end)
     Mox.stub(DNSClientMock, :respond_to_client, fn _, _, _, _ -> :ok end)
+    Mox.stub(HostsFileReaderMock, :exists?, fn _ -> false end)
     Mox.stub(HostsFileReaderMock, :ls!, fn _ -> ["hosts1"] end)
     Mox.stub(HostsFileReaderMock, :stream!, fn _ -> ["baddomain.com"] end)
     Mox.set_mox_global()

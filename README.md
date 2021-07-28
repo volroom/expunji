@@ -21,7 +21,12 @@ EXPUNJI_HOSTS_DIR - Directory where hosts files are located (default "hosts/")
 EXPUNJI_NAMESERVER_IP - The IP address of the nameserver to forward requests to (default 1.1.1.1)
 EXPUNJI_NAMESERVER_DEST_PORT - Port number to forward requests to on nameserver (default 53)
 EXPUNJI_NAMESERVER_SOCKET_PORT - Port number to send forwarded requests from (default 0 - i.e. random available port)
+EXPUNJI_WHITELIST_PATH - Path of whitelist file (defaults to a file called "whitelist" in project root)
 ```
+
+## Whitelist
+To make automatic updates of hosts files easier, a whitelist can be used to exclude certain domains.
+Add the domains you'd like to whitelist to a file and make it available to Expunji.
 
 ## Maintenance
 To reload hosts files, run `Expunji.Server.reload_hosts()`

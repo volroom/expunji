@@ -9,6 +9,7 @@ defmodule Expunji.HostsTest do
 
   describe "parse_all_files/0" do
     test "loads and parses all files in the hosts folder into a list of tuples" do
+      expect(HostsFileReaderMock, :exists?, fn _ -> false end)
       expect(HostsFileReaderMock, :ls!, fn _ -> ["hosts1", "hosts2"] end)
 
       expect(HostsFileReaderMock, :stream!, 2, fn
@@ -19,6 +20,21 @@ defmodule Expunji.HostsTest do
       expected_result = [{'baddomain.com'}, {'baddomain.org'}, {'baddomain.net'}]
 
       assert Hosts.parse_all_files() == expected_result
+    end
+  end
+
+  describe "apply_whitelist/1" do
+    test "returns hosts unaltered if no whitelist found" do
+      expect(HostsFileReaderMock, :exists?, fn _ -> false end)
+      hosts = [{'baddomain.com'}]
+      assert Hosts.apply_whitelist(hosts) == hosts
+    end
+
+    test "returns hosts with whitelisted domains excluded if whitelist found" do
+      expect(HostsFileReaderMock, :exists?, fn _ -> true end)
+      expect(HostsFileReaderMock, :stream!, 1, fn _ -> ["baddomain.com"] end)
+
+      assert Hosts.apply_whitelist([{'baddomain.com'}]) == []
     end
   end
 

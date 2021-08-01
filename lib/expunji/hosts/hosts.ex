@@ -21,8 +21,10 @@ defmodule Expunji.Hosts do
 
   def apply_whitelist(hosts) do
     if @hosts_file_reader.exists?(@whitelist_path) do
+      :logger.info("Loading whitelist...")
       hosts -- parse_file(@whitelist_path)
     else
+      :logger.info("No whitelist found")
       hosts
     end
   end

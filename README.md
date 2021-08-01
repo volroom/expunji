@@ -6,7 +6,9 @@
 * Install Elixir - https://elixir-lang.org/install.html
 * Install dependencies - `mix deps.get`
 * Download some [blocklists](https://github.com/topics/blocklist), and copy/symlink them to `hosts/`
-* Start server with `iex -S mix`
+* Start server with `iex -S mix` or build with `MIX_ENV=prod mix release` (you may need to manually grant permissions to
+  listen on port 53 depending on your system)
+* An example SystemD service is included at `priv/expunji.service`
 
 Done! Now start sending it DNS requests.
 
@@ -30,7 +32,8 @@ Add the domains you'd like to whitelist to a file and make it available to Expun
 
 ## Maintenance
 To reload hosts files, run `Expunji.Server.reload_hosts()`
-To view stats, run `Expunji.Server.get_stats()`
+A livebook is included at `priv/livebook/expunji.livemd` which can be used to view stats and reload.
+An example shell script that can be used to auto-update hosts is included at `priv/reload_hosts.sh`
 
 ## Other Tasks
 * Format: `mix format`

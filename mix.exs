@@ -5,7 +5,7 @@ defmodule Expunji.MixProject do
     [
       app: :expunji,
       version: "0.1.0",
-      elixir: "~> 1.11",
+      elixir: "~> 1.12",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
@@ -31,7 +31,7 @@ defmodule Expunji.MixProject do
     [
       {:cachex, "~> 3.4"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.14.1", only: :test},
+      {:excoveralls, "~> 0.14.2", only: :test},
       {:mox, "~> 1.0", only: :test}
     ]
   end

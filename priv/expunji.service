@@ -1,0 +1,14 @@
+[Unit]
+Description=Expunji daemon
+Requires=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+Restart=on-failure
+Environment=LANG=en_US.UTF-8
+WorkingDirectory=/home/pi/expunji
+
+ExecStart=/home/pi/expunji/_build/prod/rel/expunji/bin/expunji daemon
+ExecStop=/home/pi/expunji/_build/prod/rel/expunji/bin/expunji stop

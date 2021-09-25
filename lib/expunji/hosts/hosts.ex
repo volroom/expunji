@@ -16,6 +16,7 @@ defmodule Expunji.Hosts do
     |> Enum.flat_map(fn filename ->
       parse_file(Path.join(@hosts_dir, filename))
     end)
+    |> Enum.uniq()
     |> apply_whitelist()
   end
 

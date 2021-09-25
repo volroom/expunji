@@ -14,7 +14,7 @@ defmodule Expunji.HostsTest do
 
       expect(HostsFileReaderMock, :stream!, 2, fn
         "hosts/hosts1" -> ["# Comment", "", "127.0.0.1 baddomain.com", "127.0.0.1 baddomain.org"]
-        "hosts/hosts2" -> ["127.0.0.1 baddomain.net"]
+        "hosts/hosts2" -> ["127.0.0.1 baddomain.net", "127.0.0.1 baddomain.com"]
       end)
 
       expected_result = [{'baddomain.com'}, {'baddomain.org'}, {'baddomain.net'}]

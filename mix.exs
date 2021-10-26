@@ -16,13 +16,14 @@ defmodule Expunji.MixProject do
         "coveralls.html": :test
       ],
       elixirc_options: [warnings_as_errors: true],
-      elixirc_paths: elixirc_paths(Mix.env())
+      elixirc_paths: elixirc_paths(Mix.env()),
+      xref: [exclude: [:mnesia]]
     ]
   end
 
   def application do
     [
-      extra_applications: [:logger],
+      extra_applications: [:logger, :plug, :mnesia],
       mod: {Expunji.Application, []}
     ]
   end
@@ -32,7 +33,14 @@ defmodule Expunji.MixProject do
       {:cachex, "~> 3.4"},
       {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
       {:excoveralls, "~> 0.14.2", only: :test},
-      {:mox, "~> 1.0", only: :test}
+      {:jason, "~> 1.2"},
+      {:mox, "~> 1.0", only: :test},
+      {:phoenix, "~> 1.6"},
+      {:phoenix_html, "~> 3.1"},
+      {:plug, "~> 1.12"},
+      {:plug_cowboy, "~> 2.5"},
+      {:prometheus, "~> 4.8"},
+      {:prometheus_plugs, "~> 1.1"}
     ]
   end
 

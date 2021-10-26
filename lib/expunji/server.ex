@@ -8,6 +8,7 @@ defmodule Expunji.Server do
   use GenServer
 
   alias Expunji.DNSUtils
+  alias Expunji.Metrics
 
   @client_socket_port Application.compile_env!(:expunji, :client_socket_port)
   @dns_client Application.compile_env!(:expunji, :dns_client)
@@ -31,16 +32,7 @@ defmodule Expunji.Server do
     {:ok, state, {:continue, :load_hosts}}
   end
 
-  def default_state do
-    %{
-      abandoned: 0,
-      allowed: 0,
-      blocked: 0,
-      cache_hits: 0,
-      client_socket: nil,
-      nameserver_socket: nil
-    }
-  end
+  def default_state, do: %{client_socket: nil, nameserver_socket: nil}
 
   def get_state(), do: GenServer.call(__MODULE__, :get_state)
 
@@ -69,20 +61,20 @@ defmodule Expunji.Server do
   def handle_info({:udp, socket, _, _, packet} = message, state) do
     with {:ok, record} <- :inet_dns.decode(packet),
          {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
-      state =
-        if socket == state.client_socket do
-          case :ets.lookup(:hosts_table, domain) do
-            [{_blocked}] -> send_blocked_response(state, message, record, domain)
-            [] -> allow_request(state, message, record, domain, key)
-          end
-        else
-          send_allowed_response(state, message, record, domain, key)
+      if socket == state.client_socket do
+        case :ets.lookup(:hosts_table, domain) do
+          [{_blocked}] -> send_blocked_response(state, message, record, domain)
+          [] -> allow_request(state, message, record, domain, key)
         end
+      else
+        send_allowed_response(state, message, record, domain, key)
+      end
 
       {:noreply, state}
     else
       _ ->
         :logger.error("Bad packet: #{packet}")
+        Metrics.query_outcome(:bad_packet)
         {:noreply, state}
     end
   end
@@ -91,6 +83,7 @@ defmodule Expunji.Server do
     hosts = Expunji.Hosts.parse_all_files()
     :ets.delete_all_objects(:hosts_table)
     :ets.insert(:hosts_table, hosts)
+    Metrics.update_hosts_size()
     :logger.info("Finished loading hosts")
   end
 
@@ -101,7 +94,6 @@ defmodule Expunji.Server do
       {:ok, nil} ->
         :ets.insert(:active_queries, {key, {ip, port, request_id}})
         @dns_client.query_nameserver(packet, state.nameserver_socket)
-        state
 
       {:ok, cached_response} ->
         cached_response
@@ -109,10 +101,8 @@ defmodule Expunji.Server do
         |> @dns_client.respond_to_client(client_socket, ip, port)
 
         :logger.info("Allowed (from cache) #{domain}")
-
-        state
-        |> Map.update!(:allowed, &(&1 + 1))
-        |> Map.update!(:cache_hits, &(&1 + 1))
+        Metrics.query_outcome(:allowed)
+        Metrics.cache_outcome(:hit)
     end
   end
 
@@ -127,20 +117,20 @@ defmodule Expunji.Server do
       [{_, {ip, port, _request_id}}] ->
         @dns_client.respond_to_client(packet, state.client_socket, ip, port)
         :logger.info("Allowed #{domain}")
-        Map.update!(state, :allowed, &(&1 + 1))
+        Metrics.query_outcome(:allowed)
 
       [] ->
         :logger.error("Abandoned query: #{domain}")
-        Map.update!(state, :abandoned, &(&1 + 1))
+        Metrics.query_outcome(:abandoned)
     end
   end
 
-  defp send_blocked_response(state, {:udp, client_socket, ip, port, _}, record, domain) do
+  defp send_blocked_response(_state, {:udp, client_socket, ip, port, _}, record, domain) do
     record
     |> DNSUtils.make_blocked_dns_response()
     |> @dns_client.respond_to_client(client_socket, ip, port)
 
     :logger.info("Blocked #{domain}")
-    Map.update!(state, :blocked, &(&1 + 1))
+    Metrics.query_outcome(:blocked)
   end
 end

@@ -5,14 +5,14 @@ defmodule Expunji.DNSUtilsTest do
 
   @valid_record {:dns_rec,
                  {:dns_header, 23_017, false, :query, false, false, true, false, false, 0},
-                 [{:dns_query, 'elixir-lang.org', :a, :in}], [], [],
+                 [{:dns_query, 'elixir-lang.org', :a, :in, false}], [], [],
                  [{:dns_rr_opt, '.', :opt, 4_096, 0, 0, 0, ""}]}
   @invalid_record {:dns_rec,
                    {:dns_header, 23_017, false, :query, false, false, true, false, false, 0},
                    [{:dns_query, 'elixir-lang.org', :a}], [], [],
                    [{:dns_rr_opt, '.', :opt, 4_096, 0, 0, 0, ""}]}
   @answer_record {:dns_rec, {:dns_header, 200, true, :query, false, false, true, true, false, 0},
-                  [{:dns_query, 'elixir-lang.org', :a, :in}],
+                  [{:dns_query, 'elixir-lang.org', :a, :in, false}],
                   [
                     {:dns_rr, 'elixir-lang.org', :a, :in, 0, 200, {185, 199, 109, 153},
                      :undefined, [], false},
@@ -25,7 +25,7 @@ defmodule Expunji.DNSUtilsTest do
                   ], [], [{:dns_rr_opt, '.', :opt, 1_232, 0, 0, 0, ""}]}
   @allowed_answer_record {:dns_rec,
                           {:dns_header, 23_017, true, :query, false, false, true, false, false,
-                           0}, [{:dns_query, 'elixir-lang.org', :a, :in}],
+                           0}, [{:dns_query, 'elixir-lang.org', :a, :in, false}],
                           [
                             {:dns_rr, 'elixir-lang.org', :a, :in, 0, 200, {185, 199, 109, 153},
                              :undefined, [], false},
@@ -38,7 +38,7 @@ defmodule Expunji.DNSUtilsTest do
                           ], [], [{:dns_rr_opt, '.', :opt, 1_232, 0, 0, 0, ""}]}
   @nonexistent_answer_record {:dns_rec,
                               {:dns_header, 5_337, true, :query, false, false, true, true, false,
-                               3}, [{:dns_query, 'noexist.org', :a, :in}], [],
+                               3}, [{:dns_query, 'noexist.org', :a, :in, false}], [],
                               [
                                 {:dns_rr, 'org', :soa, :in, 0, 900,
                                  {'a0.org.afilias-nst.info', 'noc.afilias-nst.info',

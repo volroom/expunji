@@ -33,7 +33,6 @@ Add the domains you'd like to whitelist to a file and make it available to Expun
 
 ## Maintenance
 To reload hosts files, run `Expunji.Server.reload_hosts()`
-A livebook is included at `priv/livebook/expunji.livemd` which can be used to view stats and reload.
 An example shell script that can be used to auto-update hosts is included at `priv/reload_hosts.sh`
 
 ## Other Tasks

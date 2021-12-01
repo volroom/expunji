@@ -63,7 +63,7 @@ defmodule Expunji.Server do
          {:ok, {domain, _, _} = key} <- DNSUtils.get_key_from_record(record) do
       if socket == state.client_socket do
         case :ets.lookup(:hosts_table, domain) do
-          [{_blocked}] -> send_blocked_response(state, message, record, domain)
+          [{_blocked}] -> send_blocked_response(message, record, domain)
           [] -> allow_request(state, message, record, domain, key)
         end
       else
@@ -74,7 +74,7 @@ defmodule Expunji.Server do
     else
       _ ->
         :logger.error("Bad packet: #{packet}")
-        Metrics.query_outcome(:bad_packet)
+        Metrics.log_query_outcome(:bad_packet)
         {:noreply, state}
     end
   end
@@ -83,7 +83,7 @@ defmodule Expunji.Server do
     hosts = Expunji.Hosts.parse_all_files()
     :ets.delete_all_objects(:hosts_table)
     :ets.insert(:hosts_table, hosts)
-    Metrics.update_hosts_size()
+    Metrics.update_hosts_table_rows()
     :logger.info("Finished loading hosts")
   end
 
@@ -101,8 +101,7 @@ defmodule Expunji.Server do
         |> @dns_client.respond_to_client(client_socket, ip, port)
 
         :logger.info("Allowed (from cache) #{domain}")
-        Metrics.query_outcome(:allowed)
-        Metrics.cache_outcome(:hit)
+        Metrics.log_query_outcome(:allowed_cache)
     end
   end
 
@@ -117,20 +116,20 @@ defmodule Expunji.Server do
       [{_, {ip, port, _request_id}}] ->
         @dns_client.respond_to_client(packet, state.client_socket, ip, port)
         :logger.info("Allowed #{domain}")
-        Metrics.query_outcome(:allowed)
+        Metrics.log_query_outcome(:allowed_no_cache)
 
       [] ->
         :logger.error("Abandoned query: #{domain}")
-        Metrics.query_outcome(:abandoned)
+        Metrics.log_query_outcome(:abandoned)
     end
   end
 
-  defp send_blocked_response(_state, {:udp, client_socket, ip, port, _}, record, domain) do
+  defp send_blocked_response({:udp, client_socket, ip, port, _}, record, domain) do
     record
     |> DNSUtils.make_blocked_dns_response()
     |> @dns_client.respond_to_client(client_socket, ip, port)
 
     :logger.info("Blocked #{domain}")
-    Metrics.query_outcome(:blocked)
+    Metrics.log_query_outcome(:blocked)
   end
 end

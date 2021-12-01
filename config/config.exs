@@ -14,7 +14,6 @@ import Config
 
 config :expunji,
   blocked_ip: blocked_ip,
-  children: [{Cachex, name: :dns_cache}, ExpunjiWeb.Endpoint, Expunji.Server],
   client_socket_port: System.get_env("EXPUNJI_CLIENT_SOCKET_PORT", "53") |> String.to_integer(),
   dns_client: Expunji.DNSClient,
   hosts_dir: System.get_env("EXPUNJI_HOSTS_DIR", "hosts/"),

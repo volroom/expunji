@@ -1,4 +1,4 @@
-defmodule Expunji.DNSUtils do
+defmodule Expunji.DNS.Utils do
   @moduledoc """
   Functions to parse DNS traffic
   """
@@ -49,8 +49,8 @@ defmodule Expunji.DNSUtils do
     {:dns_header, request_id || id, 1, opcode, authoritative, 0, rd, 0, pr, rcode}
   end
 
-  def make_dns_query(domain, type) do
-    request_id = :rand.uniform(1_000)
+  def make_dns_query(domain, type, request_id) do
+    request_id = request_id || :rand.uniform(1_000)
 
     {
       :dns_rec,
@@ -67,7 +67,7 @@ defmodule Expunji.DNSUtils do
     :blocked
   end
 
-  def get_query_outcome({:dns_rec, _, _, [{:dns_rr, _, _, _, _, _, _result, _, _, _}], _, _}) do
+  def get_query_outcome({:dns_rec, _, _, [{:dns_rr, _, _, _, _, _, _result, _, _, _} | _], _, _}) do
     :allowed
   end
 

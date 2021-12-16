@@ -15,9 +15,9 @@ import Config
 config :expunji,
   blocked_ip: blocked_ip,
   client_socket_port: System.get_env("EXPUNJI_CLIENT_SOCKET_PORT", "53") |> String.to_integer(),
-  dns_client: Expunji.DNSClient,
   hosts_dir: System.get_env("EXPUNJI_HOSTS_DIR", "hosts/"),
   hosts_file_reader: Expunji.HostsFileReader,
+  nameserver_client: Expunji.DNS.NameserverClient,
   nameserver_dest_port:
     System.get_env("EXPUNJI_NAMESERVER_DEST_PORT", "53") |> String.to_integer(),
   nameserver_ip: nameserver_ip,

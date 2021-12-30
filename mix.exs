@@ -40,8 +40,7 @@ defmodule Expunji.MixProject do
       {:plug, "~> 1.12"},
       {:plug_cowboy, "~> 2.5"},
       {:prometheus, "~> 4.8"},
-      {:prometheus_plugs, "~> 1.1"},
-      {:prometheus_process_collector, "~> 1.6"}
+      {:prometheus_plugs, "~> 1.1"}
     ]
   end
 

@@ -1,11 +1,11 @@
-defmodule Expunji.DNSUtils do
+defmodule Expunji.DNS.Utils do
   @moduledoc """
   Functions to parse DNS traffic
   """
 
   @blocked_ip Application.compile_env!(:expunji, :blocked_ip)
 
-  def get_key_from_record({:dns_rec, _, [{:dns_query, domain, type, class}], _, _, _}) do
+  def get_key_from_record({:dns_rec, _, [{:dns_query, domain, type, class, _}], _, _, _}) do
     {:ok, {domain, type, class}}
   end
 
@@ -28,7 +28,7 @@ defmodule Expunji.DNSUtils do
   end
 
   def make_blocked_dns_response({:dns_rec, request_header, [query], _, _, _} = record) do
-    {:dns_query, domain, _type, class} = query
+    {:dns_query, domain, _type, class, _unicast} = query
 
     header = make_response_header(request_header)
     anlist = [{:dns_rr, domain, :a, class, 0, blocked_ttl(), @blocked_ip, nil, [], false}]
@@ -47,6 +47,28 @@ defmodule Expunji.DNSUtils do
     {:dns_header, id, _, opcode, _, _, rd, _, pr, rcode} = request_header
 
     {:dns_header, request_id || id, 1, opcode, authoritative, 0, rd, 0, pr, rcode}
+  end
+
+  def make_dns_query(domain, type, request_id) do
+    request_id = request_id || :rand.uniform(1_000)
+
+    {
+      :dns_rec,
+      {:dns_header, request_id, false, :query, false, false, true, false, false, 0},
+      [{:dns_query, domain, type, :in, false}],
+      [],
+      [],
+      [{:dns_rr_opt, '.', :opt, 4_096, 0, 0, 0, ""}]
+    }
+    |> :inet_dns.encode()
+  end
+
+  def get_query_outcome({:dns_rec, _, _, [{:dns_rr, _, _, _, _, _, @blocked_ip, _, _, _}], _, _}) do
+    :blocked
+  end
+
+  def get_query_outcome({:dns_rec, _, _, [{:dns_rr, _, _, _, _, _, _result, _, _, _} | _], _, _}) do
+    :allowed
   end
 
   def blocked_ttl, do: 2

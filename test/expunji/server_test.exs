@@ -1,118 +1,72 @@
 defmodule Expunji.ServerTest do
   use ExUnit.Case
 
-  alias Expunji.DNSClientMock
+  import ExUnit.CaptureLog
+  import Mox
+  require Logger
+  alias Expunji.DNS.NameserverClientMock
+  alias Expunji.DNS.TestClient
   alias Expunji.HostsFileReaderMock
   alias Expunji.Server
 
-  @allowed_packet <<160, 94, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 11, 101, 108, 105, 120, 105, 114, 45,
-                    108, 97, 110, 103, 3, 111, 114, 103, 0, 0, 1, 0, 1, 0, 0, 41, 16, 0, 0, 0, 0,
-                    0, 0, 0>>
-  @allowed_ns_packet <<60, 232, 129, 128, 0, 1, 0, 4, 0, 0, 0, 1, 11, 101, 108, 105, 120, 105,
-                       114, 45, 108, 97, 110, 103, 3, 111, 114, 103, 0, 0, 1, 0, 1, 192, 12, 0, 1,
-                       0, 1, 0, 0, 1, 8, 0, 4, 185, 199, 110, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1,
-                       8, 0, 4, 185, 199, 109, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1, 8, 0, 4, 185,
-                       199, 111, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1, 8, 0, 4, 185, 199, 108, 153,
-                       0, 0, 41, 4, 208, 0, 0, 0, 0, 0, 0>>
-  @blocked_packet <<58, 60, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 9, 98, 97, 100, 100, 111, 109, 97, 105,
-                    110, 3, 99, 111, 109, 0, 0, 1, 0, 1, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0>>
+  @allowed_ns_packet <<154, 229, 129, 0, 0, 1, 0, 4, 0, 0, 0, 1, 11, 101, 108, 105, 120, 105, 114,
+                       45, 108, 97, 110, 103, 3, 111, 114, 103, 0, 0, 1, 0, 1, 192, 12, 0, 1, 0,
+                       1, 0, 0, 1, 44, 0, 4, 185, 199, 108, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1, 44,
+                       0, 4, 185, 199, 111, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1, 44, 0, 4, 185, 199,
+                       110, 153, 192, 12, 0, 1, 0, 1, 0, 0, 1, 44, 0, 4, 185, 199, 109, 153, 0, 0,
+                       41, 4, 208, 0, 0, 0, 0, 0, 0>>
   @invalid_packet <<60, 1, 32, 0, 1, 0, 0, 0, 0, 0, 1, 9, 98, 97, 100, 100, 111, 109, 97, 105,
                     110, 3, 99, 111, 109, 0, 0, 1, 0, 1, 0, 0, 41, 16, 0, 0, 0, 0, 0, 0, 0>>
 
   setup_all do
-    Mox.stub(DNSClientMock, :query_nameserver, fn _, _ -> :ok end)
-    Mox.stub(DNSClientMock, :respond_to_client, fn _, _, _, _ -> :ok end)
-    Mox.stub(HostsFileReaderMock, :exists?, fn _ -> false end)
-    Mox.stub(HostsFileReaderMock, :ls!, fn _ -> ["hosts1"] end)
-    Mox.stub(HostsFileReaderMock, :stream!, fn _ -> ["baddomain.com"] end)
-    Mox.set_mox_global()
+    stub(NameserverClientMock, :query, fn _, _ -> :ok end)
+    stub(HostsFileReaderMock, :exists?, fn _ -> false end)
+    stub(HostsFileReaderMock, :ls!, fn _ -> ["hosts1"] end)
+    stub(HostsFileReaderMock, :stream!, fn _ -> ["baddomain.com"] end)
+    set_mox_global()
     server_pid = start_supervised!(Server)
+    state = Server.get_state()
 
-    %{server_pid: server_pid}
+    %{server_pid: server_pid, state: state}
   end
 
   describe "dns" do
     @tag capture_log: true
     test "rejects invalid dns packets" do
-      %{client_socket: client_socket} = state = Server.get_state()
-
-      assert {:noreply, ^state} =
-               Server.handle_info(
-                 {:udp, client_socket, {127, 0, 0, 1}, 100, @invalid_packet},
-                 state
-               )
+      assert {:noreply, %{}} =
+               Server.handle_info({:udp, nil, {127, 0, 0, 1}, 100, @invalid_packet}, %{})
     end
 
     test "returns a blocked response for domains in the blocked list" do
-      %{client_socket: client_socket} = state = Server.get_state()
-
-      {:noreply, new_state} =
-        Server.handle_info({:udp, client_socket, {127, 0, 0, 1}, 100, @blocked_packet}, state)
-
-      assert new_state.blocked == state.blocked + 1
+      assert TestClient.query_domain('baddomain.com') == :blocked
     end
 
-    test "returns a real response for domains not in the blocked list" do
-      %{client_socket: client_socket, nameserver_socket: nameserver_socket} =
-        state = Server.get_state()
-
-      {:noreply, state} =
-        Server.handle_info({:udp, client_socket, {127, 0, 0, 1}, 100, @allowed_packet}, state)
-
-      {:noreply, new_state} =
-        Server.handle_info(
-          {:udp, nameserver_socket, {8, 8, 8, 8}, 100, @allowed_ns_packet},
-          state
-        )
-
-      assert new_state.allowed == state.allowed + 1
+    test "returns a real response for domains not in the blocked list", context do
+      %{state: %{nameserver_socket: nameserver_socket}} = context
+      Process.send_after(Server, {:udp, nameserver_socket, :ip, :length, @allowed_ns_packet}, 50)
+      assert TestClient.query_domain('elixir-lang.org') == :allowed
       clear_caches()
     end
 
     test "returns a cached response for domains not in the blocked list that have been served already" do
-      %{client_socket: client_socket, nameserver_socket: nameserver_socket} =
-        old_state = Server.get_state()
-
-      {:noreply, state} =
-        Server.handle_info({:udp, client_socket, {127, 0, 0, 1}, 100, @allowed_packet}, old_state)
-
-      {:noreply, state} =
-        Server.handle_info(
-          {:udp, nameserver_socket, {8, 8, 8, 8}, 100, @allowed_ns_packet},
-          state
-        )
-
-      {:noreply, new_state} =
-        Server.handle_info({:udp, client_socket, {127, 0, 0, 1}, 100, @allowed_packet}, state)
-
-      assert new_state.allowed == old_state.allowed + 2
-      assert new_state.cache_hits == old_state.cache_hits + 1
+      request_id = :rand.uniform(1_000)
+      {:ok, record} = :inet_dns.decode(@allowed_ns_packet)
+      Cachex.put(:dns_cache, {'elixir-lang.org', :a, :in}, record)
+      assert TestClient.query_domain('elixir-lang.org', request_id) == :allowed
       clear_caches()
     end
 
-    @tag capture_log: true
-    test "handles abandoned queries" do
-      %{nameserver_socket: nameserver_socket} = state = Server.get_state()
+    test "handles abandoned queries", context do
+      %{state: %{nameserver_socket: nameserver_socket} = state} = context
 
-      {:noreply, new_state} =
-        Server.handle_info(
-          {:udp, nameserver_socket, {8, 8, 8, 8}, 100, @allowed_ns_packet},
-          state
-        )
+      assert capture_log(fn ->
+               Server.handle_info(
+                 {:udp, nameserver_socket, :ip, :length, @allowed_ns_packet},
+                 state
+               )
+             end) =~ "Abandoned query"
 
-      assert new_state.abandoned == state.abandoned + 1
       clear_caches()
-    end
-  end
-
-  describe "get_state/0" do
-    test "can get state" do
-      state = Server.get_state()
-      stats_keys = [:abandoned, :allowed, :blocked, :cache_hits]
-
-      assert Map.take(state, stats_keys) == Map.take(Server.default_state(), stats_keys)
-      assert is_port(state.client_socket)
-      assert is_port(state.nameserver_socket)
     end
   end
 

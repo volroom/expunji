@@ -15,7 +15,7 @@ Done! Now start sending it DNS requests.
 All domains present in your hosts files will be answered with 0.0.0.0, all others will be sent real answers.
 
 Metrics are made available by a Prometheus endpoint, the default address is:
-[http://localhost:3000/metrics](http://localhost:4000/metrics). An example Grafana dashboard is included at
+[http://localhost:4000/metrics](http://localhost:4000/metrics). An example Grafana dashboard is included at
 `priv/dashboard.json` and an example Prometheus config is included at `priv/prometheus.yml`.
 
 ## Configuration

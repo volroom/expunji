@@ -32,7 +32,8 @@ config :expunji,
          view: ExpunjiWeb.ErrorView,
          accepts: ~w(html json),
          layout: false
-       ]
+       ],
+       server: true
 
 log_levels = %{"debug" => :debug, "error" => :error, "info" => :info, "warn" => :warn}
 log_level = Map.get(log_levels, System.get_env("EXPUNJI_LOG_LEVEL", "info"))

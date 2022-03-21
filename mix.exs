@@ -31,13 +31,13 @@ defmodule Expunji.MixProject do
   defp deps do
     [
       {:cachex, "~> 3.4"},
-      {:credo, "~> 1.5", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.14.2", only: :test},
-      {:jason, "~> 1.2"},
+      {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.14.4", only: :test},
+      {:jason, "~> 1.3"},
       {:mox, "~> 1.0", only: :test},
       {:phoenix, "~> 1.6"},
-      {:phoenix_html, "~> 3.1"},
-      {:plug, "~> 1.12"},
+      {:phoenix_html, "~> 3.2"},
+      {:plug, "~> 1.13"},
       {:plug_cowboy, "~> 2.5"},
       {:prometheus, "~> 4.8"},
       {:prometheus_plugs, "~> 1.1"}

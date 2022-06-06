@@ -3,27 +3,25 @@ defmodule Expunji.Hosts do
   Functions to parse hosts files
   """
 
-  @hosts_dir Application.compile_env!(:expunji, :hosts_dir)
   @hosts_file_reader Application.compile_env!(:expunji, :hosts_file_reader)
-  @whitelist_path Application.compile_env!(:expunji, :whitelist_path)
 
   def parse_all_files() do
     :logger.info("Loading hosts files...")
 
-    @hosts_dir
+    hosts_dir()
     |> @hosts_file_reader.ls!()
     |> Enum.filter(&(&1 != ".gitignore"))
     |> Enum.flat_map(fn filename ->
-      parse_file(Path.join(@hosts_dir, filename))
+      parse_file(Path.join(hosts_dir(), filename))
     end)
     |> Enum.uniq()
     |> apply_whitelist()
   end
 
   def apply_whitelist(hosts) do
-    if @hosts_file_reader.exists?(@whitelist_path) do
+    if @hosts_file_reader.exists?(whitelist_path()) do
       :logger.info("Loading whitelist...")
-      hosts -- parse_file(@whitelist_path)
+      hosts -- parse_file(whitelist_path())
     else
       :logger.info("No whitelist found")
       hosts
@@ -57,4 +55,7 @@ defmodule Expunji.Hosts do
       []
     end
   end
+
+  defp hosts_dir, do: Application.fetch_env!(:expunji, :hosts_dir)
+  defp whitelist_path, do: Application.fetch_env!(:expunji, :whitelist_path)
 end

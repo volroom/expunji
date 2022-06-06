@@ -7,7 +7,7 @@
 * Install dependencies - `mix deps.get`
 * Download some [blocklists](https://github.com/topics/blocklist), and copy/symlink them to `hosts/`
 * Start server with `iex -S mix phx.server` or build with `MIX_ENV=prod mix release` (you may need to manually grant
-permissions to listen on port 53 depending on your system)
+permissions to listen on port 53 depending on your operating system)
 * An example SystemD service is included at `priv/expunji.service`
 
 Done! Now start sending it DNS requests.
@@ -24,6 +24,7 @@ The following environment variables may be used to configure Expunji:
 EXPUNJI_BLOCKED_IP - IP address to answer blocked domains with (default 0.0.0.0)
 EXPUNJI_CLIENT_SOCKET_PORT - Port number to listen for DNS requests on (default 53)
 EXPUNJI_HOSTS_DIR - Directory where hosts files are located (default "hosts/")
+EXPUNJI_HTTP_PORT - Port number for the prometheus endpoint (default 4000)
 EXPUNJI_LOG_LEVEL - Log level - info/error/debug/warn (default "info"). Set to "error" if you want to hide loglines for
 successful DNS queries.
 EXPUNJI_NAMESERVER_IP - The IP address of the nameserver to forward requests to (default 1.1.1.1)

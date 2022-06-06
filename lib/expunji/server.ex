@@ -11,8 +11,6 @@ defmodule Expunji.Server do
   alias Expunji.DNS.Utils
   alias Expunji.Metrics
 
-  @client_socket_port Application.compile_env!(:expunji, :client_socket_port)
-  @nameserver_socket_port Application.compile_env!(:expunji, :nameserver_socket_port)
   @nameserver_client Application.compile_env!(:expunji, :nameserver_client)
 
   def start_link(_) do
@@ -25,8 +23,8 @@ defmodule Expunji.Server do
     :ets.new(:hosts_table, [:set, :named_table, :public, read_concurrency: true])
 
     :logger.info("Opening sockets")
-    {:ok, client_socket} = :gen_udp.open(@client_socket_port, [:binary, active: true])
-    {:ok, nameserver_socket} = :gen_udp.open(@nameserver_socket_port, [:binary, active: true])
+    {:ok, client_socket} = :gen_udp.open(client_socket_port(), [:binary, active: true])
+    {:ok, nameserver_socket} = :gen_udp.open(nameserver_socket_port(), [:binary, active: true])
     state = %{state | client_socket: client_socket, nameserver_socket: nameserver_socket}
     :logger.info("Server up")
 
@@ -130,4 +128,7 @@ defmodule Expunji.Server do
     :logger.info("Blocked #{domain}")
     Metrics.log_query_outcome(:blocked)
   end
+
+  defp client_socket_port, do: Application.fetch_env!(:expunji, :client_socket_port)
+  defp nameserver_socket_port, do: Application.fetch_env!(:expunji, :nameserver_socket_port)
 end

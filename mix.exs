@@ -32,7 +32,7 @@ defmodule Expunji.MixProject do
     [
       {:cachex, "~> 3.4"},
       {:credo, "~> 1.6", only: [:dev, :test], runtime: false},
-      {:excoveralls, "~> 0.14.4", only: :test},
+      {:excoveralls, "~> 0.15.0", only: :test},
       {:jason, "~> 1.3"},
       {:mox, "~> 1.0", only: :test},
       {:phoenix, "~> 1.6"},

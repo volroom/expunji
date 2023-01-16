@@ -5,7 +5,7 @@ defmodule Expunji.MixProject do
     [
       app: :expunji,
       version: "0.1.0",
-      elixir: "~> 1.12",
+      elixir: "~> 1.14",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
@@ -40,6 +40,8 @@ defmodule Expunji.MixProject do
       {:plug, "~> 1.13"},
       {:plug_cowboy, "~> 2.5"},
       {:prometheus, "~> 4.8"},
+      {:prometheus_ex,
+       git: "https://github.com/lanodan/prometheus.ex", branch: "fix/elixir-1.14", override: true},
       {:prometheus_plugs, "~> 1.1"}
     ]
   end
